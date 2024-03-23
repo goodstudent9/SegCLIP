@@ -1,3 +1,4 @@
+# SegCLIP: This is the file belong to ruohang XU
 # SegCLIP: Patch Aggregation with Learnable Centers for Open-Vocabulary Semantic Segmentation
 
 The implementation of paper [**SegCLIP: Patch Aggregation with Learnable Centers for Open-Vocabulary Semantic Segmentation**](https://arxiv.org/abs/2211.14813). 
