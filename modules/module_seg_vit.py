@@ -284,14 +284,14 @@ class SemanticLearnerModule(nn.Module):
         bs, l, c = inputs.size()
         hw_ = int(np.sqrt(l))
 
-        org_inputs = inputs
+        org_inputs = inputs  # 这是patch级别的特征
         in_feature = self.norm(inputs).permute(0, 2, 1).contiguous()   # (B, H, L)
 
-        q_feat = self.semantic_center.to(device=org_inputs.device, dtype=org_inputs.dtype)
+        q_feat = self.semantic_center.to(device=org_inputs.device, dtype=org_inputs.dtype) #q feat是语义点的数量，维度是768，这里的token数量是8个
         q_feat = q_feat.unsqueeze(0).repeat(bs, 1, 1)   # [bs, n_token, c]
 
         for layer_id_, attn_fct_ in enumerate(self.cross_att):
-            kv_ = torch.cat([q_feat, org_inputs], dim=1)
+            kv_ = torch.cat([q_feat, org_inputs], dim=1) 
             q_feat = attn_fct_(q_feat, kv_)
 
         q_feat = self.cross_ln(q_feat).to(dtype=in_feature.dtype)  # [bs, n_token, c]
@@ -435,8 +435,8 @@ class SegViT(nn.Module):
             mid_states['hidden'] = x_
             hard_attn_1, soft_attn_1 = None, None
 
-            x_, hard_attn_2, soft_attn_2, _ = self.semantic_layer2(x_)
-            x_ = self.layers2(x_)
+            x_, hard_attn_2, soft_attn_2, _ = self.semantic_layer2(x_) #这里的x还是
+            x_ = self.layers2(x_) #1,8
 
             cls = torch.max(x_, dim=1, keepdim=True)[0]
             x = torch.cat([cls, x_], dim=1)

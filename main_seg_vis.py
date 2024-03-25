@@ -21,6 +21,7 @@ sys.path.insert(0, parentdir)
 
 import mmcv
 import torch
+# from mmcv.cnn.utils import revert_sync_batchnorm
 from mmcv.cnn.utils import revert_sync_batchnorm
 from mmcv.image import tensor2imgs
 from mmcv.parallel import collate, scatter
@@ -175,7 +176,7 @@ def inference(args, cfg):
                 break
     else:
         input_ = args.input
-        input_ = mmcv.imread(input_)
+        input_ = mmcv.imread(input_)#332，500
         vis_seg(seg_model, input_, args.output_dir, args.vis, img_idx=os.path.splitext(os.path.basename(args.input))[0])
 
 
