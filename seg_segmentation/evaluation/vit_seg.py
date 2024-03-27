@@ -221,12 +221,29 @@ class ViTSegInference(EncoderDecoder):
         grouped_img_tokens = F.normalize(grouped_img_tokens, dim=-1)
         img_avg_feat = F.normalize(img_avg_feat, dim=-1)
 
-        # [H, W, G]
+        # [H, W, G] 这里是每一个patch属于的group的位置被标记成了1
         onehot_attn_map = F.one_hot(attn_map.argmax(dim=-1), num_classes=attn_map.shape[-1]).to(dtype=attn_map.dtype)
-        #TODO 这里0
+        #TODO 这里进行VLfeature map的构造, 这个是当前图片的feayure map，需要进行映射，把每一个patch级别的feature映射到全局
+        frame_feature_map =  img_outs['image_feat'].squeeze(0)[attn_map.argmax(dim=-1)] #这是每个patch对应的group的特征[224,224,512]
+        
+        
+
         num_fg_classes = self.text_embedding.shape[0]
         class_offset = 1 if self.with_bg else 0
         text_tokens = self.text_embedding 
+        patch_classification_proba = frame_feature_map @ text_tokens.T #得到了每个patch对应的在类别上的概率分布[224,224,80]
+        patch_classification_proba = F.softmax(patch_classification_proba)
+        max_indices = torch.argmax(patch_classification_proba, dim=2)
+        from torchvision import transforms
+        unloader = transforms.ToPILImage()
+        image = max_indices.cpu().clone()  # clone the tensor
+        image = image.squeeze(0)  # remove the fake batch dimension
+        image = unloader(image.float()/3)
+        image.save('/home/SegCLIP/output/example.jpg')
+
+        # max_indices = max_indices.tolist()
+        # print(max_indices)
+
         num_classes = num_fg_classes + class_offset
 
         logit_scale = torch.clamp(self.model.clip.logit_scale.exp(), max=100)
@@ -234,6 +251,8 @@ class ViTSegInference(EncoderDecoder):
         group_affinity_mat = (grouped_img_tokens @ text_tokens.T) * logit_scale
         #TODO 如果这里换成了patch级别的交互呢？ 
         pre_group_affinity_mat = F.softmax(group_affinity_mat, dim=-1)
+        
+
 
         avg_affinity_mat = (img_avg_feat @ text_tokens.T) * logit_scale
         avg_affinity_mat = F.softmax(avg_affinity_mat, dim=-1)
