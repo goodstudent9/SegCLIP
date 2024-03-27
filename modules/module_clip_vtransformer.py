@@ -76,5 +76,5 @@ class VisualTransformer(nn.Module):
 
         if len(mid_states['attns']) == 0:
             assert mask_ratio > 0., "Must pass the semantic layer~"
-
-        return x, mae_mask, mae_ids_restore, mid_states
+        #TODO 后续使用的就是这里的embeding
+        return x, mae_mask, mae_ids_restore, mid_states #这里的mid_state就是patch级别的embedding

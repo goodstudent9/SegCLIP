@@ -83,7 +83,7 @@ class CLIP(CLIP_Module):
         Refactor this function due to we need hidden_ln
         """
         hidden, mae_mask, mae_ids_restore, mid_states = self.visual(image.type(self.dtype), video_frame=video_frame, mask_ratio=mask_ratio)
-        hidden_ln = self.visual.ln_post(hidden)
+        hidden_ln = self.visual.ln_post(hidden) #这里的hidden是聚合过的semantic center embedding 1,9,768
         return hidden_ln, mae_mask, mae_ids_restore, mid_states
 
     def encode_image(self, image, return_hidden=False, video_frame=-1, mask_ratio=0.):
@@ -99,7 +99,7 @@ class CLIP(CLIP_Module):
         if return_hidden:
             if mask_ratio > 0.:
                 return x, hidden, mae_mask, mae_ids_restore, mid_states
-            return x, hidden, mid_states
+            return x, hidden, mid_states #midstates有patch embedding
         return x
 
     def encode_text(self, text, attn_mask=None, return_hidden=False, mask_ratio=0.):

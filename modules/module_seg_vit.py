@@ -254,7 +254,7 @@ class SemanticLearnerModule(nn.Module):
         self.in_channels = in_channels
         self.num_heads = num_heads # in_channels must both be divisible by groups
         self.norm = nn.LayerNorm(self.in_channels)  # Operates on the last axis (c) of the input data.
-
+        #TODO 这里的center到底是什么东西
         self.semantic_center = Parameter(torch.Tensor(*[num_tokens, in_channels]))
         trunc_normal_(self.semantic_center, std=.02)
 
@@ -284,26 +284,26 @@ class SemanticLearnerModule(nn.Module):
         bs, l, c = inputs.size()
         hw_ = int(np.sqrt(l))
 
-        org_inputs = inputs  # 这是patch级别的特征
+        org_inputs = inputs  # 这是patch级别的特征 196 768
         in_feature = self.norm(inputs).permute(0, 2, 1).contiguous()   # (B, H, L)
 
         q_feat = self.semantic_center.to(device=org_inputs.device, dtype=org_inputs.dtype) #q feat是语义点的数量，维度是768，这里的token数量是8个
-        q_feat = q_feat.unsqueeze(0).repeat(bs, 1, 1)   # [bs, n_token, c]
+        q_feat = q_feat.unsqueeze(0).repeat(bs, 1, 1)   # [bs, n_token, c] 这里的n_token是可以随时设定的。之后试试更多的维度
 
         for layer_id_, attn_fct_ in enumerate(self.cross_att):
             kv_ = torch.cat([q_feat, org_inputs], dim=1) 
             q_feat = attn_fct_(q_feat, kv_)
 
-        q_feat = self.cross_ln(q_feat).to(dtype=in_feature.dtype)  # [bs, n_token, c]
+        q_feat = self.cross_ln(q_feat).to(dtype=in_feature.dtype)  # [bs, n_token, c] #这里的q_feat才是最终的包含了分割信息的东西
 
         k_feat = self.k_conv(in_feature).permute(0, 2, 1).contiguous()  # (B, L, H)
         k_feat = self.k_ln(k_feat).to(dtype=in_feature.dtype)     # Shape:  [bs, h*w, c]
 
         v_feat = self.v_conv(in_feature).permute(0, 2, 1).contiguous().to(dtype=in_feature.dtype)  # (B, L, H)
 
-        attn = torch.einsum("...si,...di->...sd",  q_feat, k_feat)  # [bs, n_token, h*w]
+        attn = torch.einsum("...si,...di->...sd",  q_feat, k_feat)  # [bs, n_token, h*w] 1，8，768   1 196 768
         hard_attn = gumbel_softmax(attn, tau=0.9, hard=True, dim=1, is_training=self.training)
-        soft_attn = F.softmax(attn, dim=1)
+        soft_attn = F.softmax(attn, dim=1) #1 8 196 每个patch的对应的8个group
 
         # Produced the attended inputs.
         outputs = torch.einsum("...si,...id->...sd",  hard_attn, v_feat)  # (B, n_token, c)
@@ -417,7 +417,7 @@ class SegViT(nn.Module):
 
         # split [CLS]
         cls, x_ = torch.split(x, [1, x.size(1)-1], dim=1)
-
+        #TODO 在这里把X存储下来作为map
         x_ = self.layers0(x_)
 
         if self.patch_len ** 2 != x_.size(1) and 4 * (self.patch_len ** 2) != x_.size(1):    # if do MAE mask
@@ -442,7 +442,7 @@ class SegViT(nn.Module):
             x = torch.cat([cls, x_], dim=1)
 
             # semantic_attn is always the last one, (B, n_token, w*h)
-            if hard_attn_1 is not None:
+            if hard_attn_1 is not None:# attention记录的是每一个patch和每一个group的注意力
                 mid_states['attns'].append({"soft_attn": soft_attn_1, "hard_attn": hard_attn_1})
 
             mid_states['attns'].append({"soft_attn": soft_attn_2, "hard_attn": hard_attn_2})

@@ -204,7 +204,7 @@ class ViTSegInference(EncoderDecoder):
         map of the same size as input."""
         assert img.shape[0] == 1, 'batch size must be 1'
 
-        # [B, C, H, W], get the last one only
+        # [B, C, H, W], get the last one only 得到的是每一个pixle对应的
         attn_map = self.get_attn_maps(img, rescale=True)[-1]
         # [H, W, G], select batch idx 0
         attn_map = attn_map[0]
@@ -223,15 +223,16 @@ class ViTSegInference(EncoderDecoder):
 
         # [H, W, G]
         onehot_attn_map = F.one_hot(attn_map.argmax(dim=-1), num_classes=attn_map.shape[-1]).to(dtype=attn_map.dtype)
-
+        #TODO 这里0
         num_fg_classes = self.text_embedding.shape[0]
         class_offset = 1 if self.with_bg else 0
-        text_tokens = self.text_embedding
+        text_tokens = self.text_embedding 
         num_classes = num_fg_classes + class_offset
 
         logit_scale = torch.clamp(self.model.clip.logit_scale.exp(), max=100)
-        # [G, N]
+        # [G, N] 这里发生text 和 image的交互,将group和text对齐
         group_affinity_mat = (grouped_img_tokens @ text_tokens.T) * logit_scale
+        #TODO 如果这里换成了patch级别的交互呢？ 
         pre_group_affinity_mat = F.softmax(group_affinity_mat, dim=-1)
 
         avg_affinity_mat = (img_avg_feat @ text_tokens.T) * logit_scale
@@ -245,12 +246,13 @@ class ViTSegInference(EncoderDecoder):
 
         # TODO: check if necessary
         group_affinity_mat *= pre_group_affinity_mat
-
+        # 根据attention map的大小构造map。
         pred_logits = torch.zeros(num_classes, *attn_map.shape[:2], device=img.device, dtype=img.dtype)
 
-        pred_logits[class_offset:] = rearrange(onehot_attn_map @ group_affinity_mat, 'h w c -> c h w')
+        pred_logits[class_offset:] = rearrange(onehot_attn_map @ group_affinity_mat, 'h w c -> c h w') #one hot * class matrix 有了class
         if self.with_bg:
             bg_thresh = min(self.bg_thresh, group_affinity_mat.max().item())
+            # 这个地方设置一个阈值，来进行分割的限制
             pred_logits[0, (onehot_attn_map @ group_affinity_mat).max(dim=-1).values < bg_thresh] = 1
 
         return pred_logits.unsqueeze(0)
